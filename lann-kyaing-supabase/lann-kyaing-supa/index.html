@@ -8,28 +8,56 @@
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <title>Lann Kyaing · လမ်းကြောင်း</title>
-
-  <!-- Tabler icons (for the app UI) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css"/>
-
-  <!-- Leaflet FREE map -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
   <style>
-    * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
-    html, body, #root { height:100%; width:100%; overflow:hidden; background:#0d0d0d; }
-    body { font-family:-apple-system,'Segoe UI',sans-serif; color:#fff; }
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+
+    /* Force true full-screen on every mobile browser */
+    html {
+      height: 100%;
+      height: -webkit-fill-available;
+      background: #0d0d0d;
+    }
+    body {
+      height: 100%;
+      height: -webkit-fill-available;
+      width: 100%;
+      overflow: hidden;
+      background: #0d0d0d;
+      color: #fff;
+      font-family: -apple-system, 'Segoe UI', sans-serif;
+      /* Prevent rubber-band scroll on iOS */
+      position: fixed;
+    }
+    #root {
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
 
     /* Leaflet dark popup */
     .lk-popup .leaflet-popup-content-wrapper {
-      background:#1a1a1a !important; border:0.5px solid rgba(255,255,255,0.1) !important;
-      border-radius:10px !important; box-shadow:0 8px 32px rgba(0,0,0,0.6) !important; padding:0 !important;
+      background:#1a1a1a !important;
+      border:0.5px solid rgba(255,255,255,0.12) !important;
+      border-radius:12px !important;
+      box-shadow:0 8px 32px rgba(0,0,0,0.7) !important;
+      padding:0 !important;
     }
     .lk-popup .leaflet-popup-tip { background:#1a1a1a !important; }
     .lk-popup .leaflet-popup-content { margin:0 !important; }
-    .leaflet-control-attribution { background:rgba(13,13,13,0.7)!important; color:#444!important; font-size:9px!important; }
-    .leaflet-control-attribution a { color:#555!important; }
+    .leaflet-control-attribution {
+      background:rgba(13,13,13,0.8) !important;
+      color:#555 !important;
+      font-size:9px !important;
+    }
+    .leaflet-control-attribution a { color:#666 !important; }
+
+    /* Crosshair cursor for map location picking */
+    .picking-location { cursor: crosshair !important; }
   </style>
 </head>
 <body>

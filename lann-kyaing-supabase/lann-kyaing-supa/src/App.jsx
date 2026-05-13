@@ -18,10 +18,13 @@ export default function App() {
       setUser(u);
       if (u) {
         try {
-          const [uDoc, cfg] = await Promise.all([getUserDoc(u.id), getAdminConfig()]);
+          const [uDoc, cfg] = await Promise.all([
+            getUserDoc(u.id),
+            getAdminConfig(),
+          ]);
           setUserDoc(uDoc);
           setAdminConfig(cfg);
-        } catch(e) { console.warn(e.message); }
+        } catch(e) { console.warn("Load user doc:", e.message); }
       }
       setAuthLoading(false);
     });
@@ -29,9 +32,12 @@ export default function App() {
   }, []);
 
   if (authLoading) return (
-    <div style={{height:"100vh",display:"flex",flexDirection:"column",
-      alignItems:"center",justifyContent:"center",background:"#0d0d0d",gap:12}}>
-      <div style={{fontSize:34,fontWeight:800,color:"#fff"}}>လမ်းကြောင်း</div>
+    <div style={{
+      flex:1, display:"flex", flexDirection:"column",
+      alignItems:"center", justifyContent:"center",
+      background:"#0d0d0d", gap:12
+    }}>
+      <div style={{fontSize:32,fontWeight:800,color:"#fff"}}>လမ်းကြောင်း</div>
       <div style={{fontSize:11,color:"#444",letterSpacing:3}}>LOADING...</div>
     </div>
   );
@@ -39,67 +45,64 @@ export default function App() {
   if (!user) return <LoginPage />;
 
   return (
-    <div style={{
-      height:"100vh", maxWidth:480, margin:"0 auto",
-      display:"flex", flexDirection:"column",
-      background:"#0d0d0d", overflow:"hidden", position:"relative"
-    }}>
-      {/* Page content */}
-      <div style={{flex:1, overflow:"hidden", position:"relative"}}>
+    <>
+      {/* Page content — takes all remaining height */}
+      <div style={{flex:1, overflow:"hidden", position:"relative", minHeight:0}}>
         {activeTab === "map"     && <MapPage />}
         {activeTab === "profile" && <ProfilePage />}
       </div>
 
-      {/* Bottom nav */}
+      {/* Bottom nav — fixed height, never shrinks */}
       <nav style={{
-        height:64, background:"#0d0d0d",
+        flexShrink:0,
+        height: 60,
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        background:"#0d0d0d",
         borderTop:"0.5px solid rgba(255,255,255,0.08)",
-        display:"flex", alignItems:"center", justifyContent:"space-around",
-        flexShrink:0, position:"relative", zIndex:20,
-        paddingBottom:"env(safe-area-inset-bottom,0px)",
+        display:"flex", alignItems:"center",
+        position:"relative", zIndex:20,
       }}>
-        {/* Checkpoints */}
-        <div onClick={()=>setActiveTab("map")} style={{
-          display:"flex", flexDirection:"column", alignItems:"center",
-          gap:3, flex:1, cursor:"pointer", padding:"8px 0",
-          opacity: activeTab==="map" ? 1 : 0.35
-        }}>
-          <i className="ti ti-map-pin" style={{fontSize:22,color:"#fff"}} aria-hidden="true"/>
-          <span style={{fontSize:9,fontWeight:700,color:"#fff",letterSpacing:.5}}>
-            {t("tabs.checkpoints").toUpperCase()}
-          </span>
-        </div>
+        <TabBtn active={activeTab==="map"} icon="ti-map-pin"
+          label={t("tabs.checkpoints")} onClick={()=>setActiveTab("map")}/>
 
-        {/* + button */}
-        <div style={{display:"flex",flexDirection:"column",alignItems:"center",flex:1}}>
-          <div
-            onClick={()=>{setActiveTab("map");setShowPlusModal(true);}}
+        {/* + FAB */}
+        <div style={{flex:1,display:"flex",justifyContent:"center",alignItems:"center"}}>
+          <button
+            onClick={()=>{ setActiveTab("map"); setShowPlusModal(true); }}
+            aria-label="Add situation or check request"
             style={{
-              width:52, height:52, background:"#e24b4a",
-              borderRadius:"50%", display:"flex", alignItems:"center",
-              justifyContent:"center", marginTop:-22, cursor:"pointer",
-              border:"3px solid #0d0d0d", boxShadow:"0 4px 20px rgba(226,75,74,0.4)"
+              width:52, height:52, borderRadius:"50%",
+              background:"#e24b4a", border:"3px solid #0d0d0d",
+              display:"flex", alignItems:"center", justifyContent:"center",
+              cursor:"pointer", marginTop:-20,
+              boxShadow:"0 4px 16px rgba(226,75,74,0.5)",
             }}
           >
             <i className="ti ti-plus" style={{fontSize:26,color:"#fff"}} aria-hidden="true"/>
-          </div>
+          </button>
         </div>
 
-        {/* Profile */}
-        <div onClick={()=>setActiveTab("profile")} style={{
-          display:"flex", flexDirection:"column", alignItems:"center",
-          gap:3, flex:1, cursor:"pointer", padding:"8px 0",
-          opacity: activeTab==="profile" ? 1 : 0.35
-        }}>
-          <i className="ti ti-user-circle" style={{fontSize:22,color:"#fff"}} aria-hidden="true"/>
-          <span style={{fontSize:9,fontWeight:700,color:"#fff",letterSpacing:.5}}>
-            {t("tabs.profile").toUpperCase()}
-          </span>
-        </div>
+        <TabBtn active={activeTab==="profile"} icon="ti-user-circle"
+          label={t("tabs.profile")} onClick={()=>setActiveTab("profile")}/>
       </nav>
 
-      {/* Plus modal — rendered at App level so it covers everything */}
+      {/* Modal — above everything, true fixed overlay */}
       {showPlusModal && <PlusModal onClose={()=>setShowPlusModal(false)}/>}
-    </div>
+    </>
+  );
+}
+
+function TabBtn({ active, icon, label, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      flex:1, display:"flex", flexDirection:"column", alignItems:"center",
+      gap:3, cursor:"pointer", padding:"6px 0", background:"none", border:"none",
+      opacity: active ? 1 : 0.38,
+    }}>
+      <i className={`ti ${icon}`} style={{fontSize:22,color:"#fff"}} aria-hidden="true"/>
+      <span style={{fontSize:9,fontWeight:700,color:"#fff",letterSpacing:.5}}>
+        {label.toUpperCase()}
+      </span>
+    </button>
   );
 }
