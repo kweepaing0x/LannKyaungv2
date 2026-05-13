@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="theme-color" content="#0d0d0d"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <title>Lann Kyaing · လမ်းကြောင်း</title>
+
+  <!-- Leaflet FREE map — no API key -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    html,body,#root{height:100%;width:100%;overflow:hidden}
+    body{font-family:-apple-system,'Segoe UI',sans-serif;background:#0d0d0d;color:#fff}
+    /* Dark Leaflet popup */
+    .lk-popup .leaflet-popup-content-wrapper{
+      background:#1a1a1a!important;border:0.5px solid rgba(255,255,255,0.1)!important;
+      border-radius:10px!important;box-shadow:0 8px 32px rgba(0,0,0,0.6)!important;padding:0!important}
+    .lk-popup .leaflet-popup-tip{background:#1a1a1a!important}
+    .lk-popup .leaflet-popup-content{margin:0!important}
+    .leaflet-control-attribution{background:rgba(13,13,13,0.7)!important;color:#444!important;font-size:9px!important}
+    .leaflet-control-attribution a{color:#555!important}
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+</html>
