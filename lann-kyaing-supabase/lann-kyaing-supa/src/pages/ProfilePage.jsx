@@ -91,12 +91,12 @@ export default function ProfilePage() {
       </div>
 
       {/* Contact admin */}
-      <a href="https://t.me/doublepzYet" target="_blank" rel="noreferrer" style={{
+      <a href="https://t.me/dx0dev" target="_blank" rel="noreferrer" style={{
         display:"block", textAlign:"center", background:"#0088cc",
         borderRadius:12, padding:"13px", color:"#fff",
         fontSize:13, fontWeight:700, textDecoration:"none", marginBottom:12,
       }}>
-        📱 Contact Admin · @doublepz Yet
+        📱 Contact Admin · @dx0dev
       </a>
 
       <button onClick={signOut} style={{
