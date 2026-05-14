@@ -11,25 +11,27 @@ export const useAppStore = create((set) => ({
 
   // Map
   userLocation:    null,
-  setUserLocation: (loc) => set({ userLocation: loc }),
+  setUserLocation: (loc)  => set({ userLocation: loc }),
 
   // Pins & requests
   pins:             [],
-  setPins:          (pins)  => set({ pins }),
+  setPins:          (pins) => set({ pins }),
   checkRequests:    [],
-  setCheckRequests: (reqs)  => set({ checkRequests: reqs }),
+  setCheckRequests: (reqs) => set({ checkRequests: reqs }),
 
   // UI
   activeTab:        "map",
-  setActiveTab:     (tab)   => set({ activeTab: tab }),
+  setActiveTab:     (tab)  => set({ activeTab: tab }),
   showPlusModal:    false,
-  setShowPlusModal: (v)     => set({ showPlusModal: v }),
+  setShowPlusModal: (v)    => set({ showPlusModal: v }),
   showHistory:      false,
-  setShowHistory:   (v)     => set({ showHistory: v }),
+  setShowHistory:   (v)    => set({ showHistory: v }),
 
-  // Location picking (PlusModal asks map for a tap)
+  // Location picking
   pickingLocation:    false,
   setPickingLocation: (v)   => set({ pickingLocation: v }),
   pickedLocation:     null,
   setPickedLocation:  (loc) => set({ pickedLocation: loc }),
+  pendingPickMode:    null,   // "pin" | "req"
+  setPendingPickMode: (m)   => set({ pendingPickMode: m }),
 }));
