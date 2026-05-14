@@ -1,22 +1,20 @@
 import { supabase, isConfigured } from "../supabase";
 import dayjs from "dayjs";
 
-// ── MMT time helper ───────────────────────────────────────────
 export function getNowMMT() {
   const now = new Date();
   const mmt = new Date(now.getTime() + (6.5 * 60 + now.getTimezoneOffset()) * 60000);
   return `${String(mmt.getHours()).padStart(2,"0")}:${String(mmt.getMinutes()).padStart(2,"0")} (MMT)`;
 }
 
-// ── Guard: throw if Supabase not configured ───────────────────
-function requireSupabase() {
+function guard() {
   if (!isConfigured || !supabase)
-    throw new Error("Supabase not configured. Add keys to .env file.");
+    throw new Error("Supabase not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON to .env");
 }
 
 // ── AUTH ──────────────────────────────────────────────────────
 export async function signIn(email, password) {
-  requireSupabase();
+  guard();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
   return data;
@@ -28,38 +26,38 @@ export async function signOut() {
 }
 
 export function onAuthChange(callback) {
-  // If not configured — call back with null immediately so app shows login
   if (!isConfigured || !supabase) {
     setTimeout(() => callback(null), 0);
     return () => {};
   }
-
-  // Fire immediately with current session
   supabase.auth.getSession().then(({ data: { session } }) => {
     callback(session?.user ?? null);
   });
-
   const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
     callback(session?.user ?? null);
   });
-
   return () => subscription.unsubscribe();
 }
 
 // ── USER DOC ──────────────────────────────────────────────────
+// IMPORTANT: uid column in users table must equal Supabase Auth user.id
 export async function getUserDoc(authUid) {
-  requireSupabase();
+  guard();
+  if (!authUid) return null;
   const { data, error } = await supabase
     .from("users")
     .select("*")
     .eq("uid", authUid)
     .maybeSingle();
-  if (error) throw error;
-  return data;
+  if (error) {
+    console.error("getUserDoc error:", error.message);
+    return null;
+  }
+  return data; // includes balance_credits
 }
 
 export async function updateUserDoc(uid, updates) {
-  requireSupabase();
+  guard();
   const { error } = await supabase.from("users").update(updates).eq("uid", uid);
   if (error) throw error;
 }
@@ -75,11 +73,9 @@ export async function getAdminConfig() {
 export async function getSituationTypes() {
   if (!isConfigured || !supabase) return null;
   const { data, error } = await supabase
-    .from("situation_types")
-    .select("*")
-    .eq("is_active", true)
-    .order("severity", { ascending: false });
-  if (error) throw error;
+    .from("situation_types").select("*")
+    .eq("is_active", true).order("severity", { ascending: false });
+  if (error) return null;
   return data;
 }
 
@@ -87,67 +83,49 @@ export async function getSituationTypes() {
 export async function getTimeWindows() {
   if (!isConfigured || !supabase) return null;
   const { data, error } = await supabase
-    .from("time_window_options")
-    .select("*")
-    .eq("is_active", true)
-    .order("minutes");
-  if (error) throw error;
+    .from("time_window_options").select("*")
+    .eq("is_active", true).order("minutes");
+  if (error) return null;
   return data;
 }
 
 // ── LIVE PINS ─────────────────────────────────────────────────
 export function subscribePins(callback) {
   if (!isConfigured || !supabase) { callback([]); return () => {}; }
-
   const fetch = () =>
-    supabase
-      .from("pins")
-      .select("*")
+    supabase.from("pins").select("*")
       .gt("expires_at", new Date().toISOString())
       .order("posted_at", { ascending: false })
       .then(({ data }) => callback(data || []));
-
   fetch();
-
-  const ch = supabase
-    .channel("pins-live")
+  const ch = supabase.channel("pins-live")
     .on("postgres_changes", { event:"*", schema:"public", table:"pins" }, fetch)
     .subscribe();
-
   return () => supabase.removeChannel(ch);
 }
 
 // ── HISTORY PINS ──────────────────────────────────────────────
 export function subscribeHistoryPins(callback) {
   if (!isConfigured || !supabase) { callback([]); return () => {}; }
-
-  const now          = new Date().toISOString();
-  const sevenDaysAgo = dayjs().subtract(7,"day").toISOString();
-
-  supabase
-    .from("pins")
-    .select("*")
-    .lte("expires_at", now)
-    .gte("expires_at", sevenDaysAgo)
+  supabase.from("pins").select("*")
+    .lte("expires_at", new Date().toISOString())
+    .gte("expires_at", dayjs().subtract(7,"day").toISOString())
     .order("posted_at", { ascending: false })
     .then(({ data }) => callback((data||[]).map(p => ({ ...p, is_history:true }))));
-
   return () => {};
 }
 
 // ── POST PIN ──────────────────────────────────────────────────
 export async function postPin({ type, emoji, lat, lng, postedBy, labelMy, labelEn }) {
-  requireSupabase();
-  const now       = new Date();
-  const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  guard();
+  const now = new Date();
   const { error } = await supabase.from("pins").insert({
     type, emoji,
-    label_my:   labelMy,
-    label_en:   labelEn,
+    label_my: labelMy, label_en: labelEn,
     lat, lng,
     posted_by:  postedBy,
     posted_at:  now.toISOString(),
-    expires_at: expiresAt.toISOString(),
+    expires_at: new Date(now.getTime() + 24*60*60*1000).toISOString(),
     is_history: false,
   });
   if (error) throw error;
@@ -156,64 +134,60 @@ export async function postPin({ type, emoji, lat, lng, postedBy, labelMy, labelE
 // ── CHECK REQUESTS ────────────────────────────────────────────
 export function subscribeCheckRequests(callback) {
   if (!isConfigured || !supabase) { callback([]); return () => {}; }
-
   const fetch = () =>
-    supabase
-      .from("check_requests")
-      .select("*")
-      .eq("status", "pending")
+    supabase.from("check_requests").select("*")
+      .eq("status","pending")
       .order("created_at", { ascending: false })
       .then(({ data }) => callback(data || []));
-
   fetch();
-
-  const ch = supabase
-    .channel("checkreqs-live")
+  const ch = supabase.channel("checkreqs-live")
     .on("postgres_changes", { event:"*", schema:"public", table:"check_requests" }, fetch)
     .subscribe();
-
   return () => supabase.removeChannel(ch);
 }
 
 export async function postCheckRequest({
   requesterUid, targetLat, targetLng, targetLabel, windowMinutes, creditsCost,
 }) {
-  requireSupabase();
-  const now       = new Date();
-  const expiresAt = new Date(now.getTime() + windowMinutes * 60 * 1000);
+  guard();
+  const now = new Date();
 
-  // 1. Insert request
-  const { error: reqErr } = await supabase.from("check_requests").insert({
+  // 1. Fetch current balance
+  const { data: u, error: fe } = await supabase
+    .from("users").select("balance_credits,total_spent")
+    .eq("uid", requesterUid).single();
+  if (fe) throw new Error("Could not fetch user balance: " + fe.message);
+
+  const currentBalance = u.balance_credits ?? 0;
+  if (currentBalance < creditsCost)
+    throw new Error(`Not enough credits. Balance: ${currentBalance}, need: ${creditsCost}`);
+
+  // 2. Insert request
+  const { error: re } = await supabase.from("check_requests").insert({
     requester_uid:  requesterUid,
-    target_lat:     targetLat,
-    target_lng:     targetLng,
+    target_lat:     targetLat, target_lng: targetLng,
     target_label:   targetLabel || "Custom location",
     window_minutes: windowMinutes,
     credits_cost:   creditsCost,
     status:         "pending",
     created_at:     now.toISOString(),
-    expires_at:     expiresAt.toISOString(),
+    expires_at:     new Date(now.getTime() + windowMinutes*60*1000).toISOString(),
   });
-  if (reqErr) throw reqErr;
+  if (re) throw re;
 
-  // 2. Deduct credits
-  const { data: u, error: fetchErr } = await supabase
-    .from("users").select("balance_credits,total_spent").eq("uid", requesterUid).single();
-  if (fetchErr) throw fetchErr;
-
-  const newBalance = (u.balance_credits || 0) - creditsCost;
-  if (newBalance < 0) throw new Error("Insufficient credits");
-
-  const { error: updErr } = await supabase
-    .from("users")
-    .update({ balance_credits: newBalance, total_spent: (u.total_spent||0) + creditsCost })
+  // 3. Deduct credits
+  const { error: ue } = await supabase.from("users")
+    .update({
+      balance_credits: currentBalance - creditsCost,
+      total_spent: (u.total_spent || 0) + creditsCost,
+    })
     .eq("uid", requesterUid);
-  if (updErr) throw updErr;
+  if (ue) throw ue;
 
-  // 3. Log transaction
+  // 4. Log transaction
   await supabase.from("transactions").insert({
     uid: requesterUid, type:"spend", amount: -creditsCost,
     description: `Check request · ${windowMinutes} min`,
     created_at: now.toISOString(),
-  });
+  }).then(() => {}).catch(() => {});
 }
