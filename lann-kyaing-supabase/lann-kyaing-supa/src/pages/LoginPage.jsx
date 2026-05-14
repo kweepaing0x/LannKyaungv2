@@ -70,9 +70,9 @@ export default function LoginPage() {
         <div style={{color:"#444",fontSize:12,lineHeight:1.8}}>
           အကောင့် မရှိသေးပါက Telegram မှ ဆက်သွယ်ပါ
         </div>
-        <a href="https://t.me/doublepzYet" target="_blank" rel="noreferrer"
+        <a href="https://t.me/dx0dev" target="_blank" rel="noreferrer"
           style={{color:"#534AB7",fontSize:13,fontWeight:700,textDecoration:"none"}}>
-          @doublepz Yet
+          @dx0dev
         </a>
       </div>
     </div>
