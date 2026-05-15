@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "../store";
 import { subscribePins, subscribeCheckRequests, subscribeHistoryPins } from "../services/supabaseService";
+import PinPopup from "../components/PinPopup";
 
 const PIN_COLORS = {
   police:"#E24B4A", blocked:"#EF9F27", traffic:"#EF9F27",
@@ -48,6 +49,8 @@ export default function MapPage() {
 
   const [mapReady,    setMapReady]    = useState(false);
   const [historyPins, setHistoryPins] = useState([]);
+  // Selected pin for popup
+  const [selectedPin, setSelectedPin] = useState(null);
 
   // ── Init map ─────────────────────────────────────────────────
   useEffect(() => {
@@ -92,16 +95,14 @@ export default function MapPage() {
     else { const id=setInterval(()=>{if(window.L){clearInterval(id);init();}},100); return()=>clearInterval(id); }
   },[]);
 
-  // ── Confirm pick — reads map CENTER, saves to store immediately ──
+  // ── Confirm pick ─────────────────────────────────────────────
   function confirmPickLocation() {
     const map = mapInstance.current;
     if (!map) return;
     const center = map.getCenter();
-    const loc = { lat: center.lat, lng: center.lng };
-
-    // Place a visible confirmed marker
+    const loc    = { lat:center.lat, lng:center.lng };
     const L = window.L;
-    if (dropMarkerRef.current) { dropMarkerRef.current.remove(); dropMarkerRef.current = null; }
+    if (dropMarkerRef.current) { dropMarkerRef.current.remove(); dropMarkerRef.current=null; }
     const icon = L.divIcon({
       className:"",
       html:`<div style="display:flex;flex-direction:column;align-items:center">
@@ -114,26 +115,22 @@ export default function MapPage() {
       iconSize:[30,46], iconAnchor:[15,46],
     });
     dropMarkerRef.current = L.marker([loc.lat,loc.lng],{icon}).addTo(map);
-
-    // ── KEY FIX: save to store FIRST, then open modal ──
     setPickedLocation(loc);
     setPickingLocation(false);
-    setTimeout(() => setShowPlusModal(true), 100);
+    setTimeout(()=>setShowPlusModal(true),100);
   }
 
   function cancelPick() {
     setPickingLocation(false);
-    if (dropMarkerRef.current) { dropMarkerRef.current.remove(); dropMarkerRef.current = null; }
-    setTimeout(() => setShowPlusModal(true), 100);
+    if (dropMarkerRef.current) { dropMarkerRef.current.remove(); dropMarkerRef.current=null; }
+    setTimeout(()=>setShowPlusModal(true),100);
   }
 
-  // Clean drop marker when modal fully closes
-  useEffect(() => {
-    if (!showPlusModal && !pickingLocation && dropMarkerRef.current) {
-      dropMarkerRef.current.remove();
-      dropMarkerRef.current = null;
+  useEffect(()=>{
+    if(!showPlusModal&&!pickingLocation&&dropMarkerRef.current){
+      dropMarkerRef.current.remove(); dropMarkerRef.current=null;
     }
-  },[showPlusModal, pickingLocation]);
+  },[showPlusModal,pickingLocation]);
 
   // ── Realtime subs ─────────────────────────────────────────────
   useEffect(()=>{ const u=subscribePins(setPins); return u; },[]);
@@ -143,7 +140,7 @@ export default function MapPage() {
     else setHistoryPins([]);
   },[showHistory]);
 
-  // ── Draw warning pins ─────────────────────────────────────────
+  // ── Draw pins — clicking opens PinPopup ───────────────────────
   useEffect(()=>{
     if(!mapReady||!mapInstance.current||!window.L) return;
     const L=window.L;
@@ -153,21 +150,20 @@ export default function MapPage() {
     all.forEach(pin=>{
       const color=PIN_COLORS[pin.type]||"#888";
       const hist=!!pin.is_history;
-      const sz=hist?10:16;
+      const sz=hist?10:20;
       const icon=L.divIcon({
         className:"",
-        html:`<div style="width:${sz}px;height:${sz}px;background:${color};border-radius:50%;
-          border:2px solid rgba(255,255,255,${hist?.25:.65});opacity:${hist?.35:1};
-          box-shadow:0 0 ${hist?3:8}px ${color}${hist?"33":"88"}"></div>`,
-        iconSize:[sz,sz],iconAnchor:[sz/2,sz/2],
+        html:`<div style="
+          width:${sz}px;height:${sz}px;background:${color};border-radius:50%;
+          border:2.5px solid rgba(255,255,255,${hist?.2:.7});opacity:${hist?.4:1};
+          box-shadow:0 0 ${hist?3:10}px ${color}${hist?"33":"99"};
+          cursor:pointer;
+        "></div>`,
+        iconSize:[sz,sz], iconAnchor:[sz/2,sz/2],
       });
-      const m=L.marker([pin.lat,pin.lng],{icon}).addTo(mapInstance.current)
-        .bindPopup(`<div style="background:#1a1a1a;color:#fff;padding:12px 16px;border-radius:10px;
-          text-align:center;font-family:sans-serif;min-width:120px">
-          <div style="font-size:26px">${pin.emoji||"📍"}</div>
-          <div style="font-size:13px;font-weight:700;margin-top:6px">${pin.label_my||pin.type}</div>
-          <div style="font-size:10px;color:#666;margin-top:3px">${hist?"🕐 History":"🔴 Live"}</div>
-        </div>`,{className:"lk-popup"});
+      const m = L.marker([pin.lat,pin.lng],{icon})
+        .addTo(mapInstance.current)
+        .on("click",()=> setSelectedPin(pin)); // ← open our custom popup
       markersRef.current.push(m);
     });
   },[pins,historyPins,mapReady,showHistory]);
@@ -183,6 +179,7 @@ export default function MapPage() {
     <div style={{position:"relative",width:"100%",height:"100%",background:"#0d0d0d"}}>
       <style>{`@keyframes lkPulse{0%{transform:scale(1);opacity:.6}100%{transform:scale(2.2);opacity:0}}`}</style>
       <div ref={mapRef} style={{width:"100%",height:"100%"}}/>
+
       {!mapReady&&(
         <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",
           justifyContent:"center",background:"#0d0d0d",color:"#fff",fontSize:14,zIndex:5}}>
@@ -197,16 +194,12 @@ export default function MapPage() {
           background:"rgba(83,74,183,0.97)",padding:"12px 16px 10px",
           boxShadow:"0 2px 20px rgba(0,0,0,0.5)",
         }}>
-          <div style={{color:"#fff",fontSize:13,fontWeight:700,textAlign:"center"}}>
-            Pan map to your location
-          </div>
+          <div style={{color:"#fff",fontSize:13,fontWeight:700,textAlign:"center"}}>Pan map to your location</div>
           <div style={{color:"rgba(206,203,246,0.75)",fontSize:11,textAlign:"center",marginTop:3}}>
             The 📍 pin marks the center — pan until it's on your spot
           </div>
         </div>
-
         <PickCrosshair/>
-
         <div style={{
           position:"absolute",bottom:0,left:0,right:0,zIndex:900,
           background:"rgba(13,13,13,0.97)",padding:"14px 16px",
@@ -219,14 +212,15 @@ export default function MapPage() {
             fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
           }}>Cancel</button>
           <button onClick={confirmPickLocation} style={{
-            flex:2,padding:"13px",borderRadius:12,
-            border:"none",background:"#534AB7",color:"#fff",
-            fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
+            flex:2,padding:"13px",borderRadius:12,border:"none",
+            background:"#534AB7",color:"#fff",fontSize:14,fontWeight:700,
+            cursor:"pointer",fontFamily:"inherit",
             boxShadow:"0 4px 14px rgba(83,74,183,0.5)",
           }}>✓ Confirm this location</button>
         </div>
       </>)}
 
+      {/* ── NORMAL MODE ── */}
       {!pickingLocation&&(<>
         <div onClick={()=>setShowHistory(!showHistory)} style={{
           position:"absolute",top:14,left:"50%",transform:"translateX(-50%)",
@@ -238,7 +232,6 @@ export default function MapPage() {
             {showHistory?`🕐 History ON · tap to hide`:`🕐 History · ${historyPins.length} pins`}
           </span>
         </div>
-
         <div style={{position:"absolute",top:60,right:12,zIndex:500}}>
           <button onClick={centerOnUser} style={{
             width:36,height:36,background:"rgba(20,20,20,0.96)",
@@ -248,7 +241,6 @@ export default function MapPage() {
             <i className="ti ti-navigation" style={{fontSize:16,color:"#ccc"}} aria-hidden="true"/>
           </button>
         </div>
-
         {openReqs.length>0&&(
           <div style={{
             position:"absolute",bottom:0,left:0,right:0,zIndex:400,
@@ -281,6 +273,11 @@ export default function MapPage() {
           </div>
         )}
       </>)}
+
+      {/* Pin detail popup */}
+      {selectedPin && (
+        <PinPopup pin={selectedPin} onClose={()=>setSelectedPin(null)}/>
+      )}
     </div>
   );
 }
