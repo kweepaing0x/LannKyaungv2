@@ -3,7 +3,17 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./i18n";
 
-// Global error boundary so a crash never shows a blank screen
+// Unregister any old service workers that might be serving stale cache
+// This runs on every page load — if there's a broken SW, kills it
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(registrations => {
+    // On dev, unregister all SWs to avoid cache confusion
+    if (import.meta.env.DEV) {
+      registrations.forEach(reg => reg.unregister());
+    }
+  });
+}
+
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(e) { return { error: e }; }
@@ -20,7 +30,16 @@ class ErrorBoundary extends React.Component {
           {this.state.error.message}
         </div>
         <button
-          onClick={()=>window.location.reload()}
+          onClick={() => {
+            // Clear SW cache and reload
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations()
+                .then(regs => Promise.all(regs.map(r => r.unregister())))
+                .then(() => window.location.reload());
+            } else {
+              window.location.reload();
+            }
+          }}
           style={{
             marginTop:12, padding:"10px 24px", borderRadius:10,
             background:"#e24b4a", border:"none", color:"#fff",
