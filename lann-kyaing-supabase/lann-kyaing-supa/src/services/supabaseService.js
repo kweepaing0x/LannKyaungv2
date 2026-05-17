@@ -45,22 +45,35 @@ export async function signOut() {
 }
 
 export function onAuthChange(callback) {
-  if (!isConfigured || !supabase) { setTimeout(()=>callback(null),0); return ()=>{}; }
-  supabase.auth.getSession().then(({data:{session}})=>callback(session?.user??null));
-  const {data:{subscription}} = supabase.auth.onAuthStateChange((_,session)=>callback(session?.user??null));
-  return ()=>subscription.unsubscribe();
-}
+  if (!isConfigured || !supabase) {
+    setTimeout(() => callback(null), 0);
+    return () => {};
+  }
 
-// ── GPS RE-REQUEST ────────────────────────────────────────────
-export function requestGPS() {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject(new Error("Geolocation not supported"));
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      (err) => reject(err),
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+  let active = true;
+
+  const emit = (user) => {
+    if (active) callback(user);
+  };
+
+  supabase.auth
+    .getSession()
+    .then(({ data }) => {
+      emit(data?.session?.user ?? null);
+    })
+    .catch((error) => {
+      console.warn("getSession failed:", error.message);
+      emit(null);
+    });
+
+  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    emit(session?.user ?? null);
   });
+
+  return () => {
+    active = false;
+    data?.subscription?.unsubscribe();
+  };
 }
 
 // ── USER DOC ──────────────────────────────────────────────────
