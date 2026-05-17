@@ -7,131 +7,41 @@
   <meta name="mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-  <title>Lann Kyaung လမ်းကြောင်း</title>
-
+  <title>Lann Kyaung · လမ်းကြောင်း</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
   <style>
-    *, *::before, *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      -webkit-tap-highlight-color: transparent;
-    }
-    html {
-      height: 100%;
-      height: -webkit-fill-available;
-      background: #0d0d0d;
-    }
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+    html { height:100%; height:-webkit-fill-available; background:#0d0d0d; }
     body {
-      height: 100%;
-      height: -webkit-fill-available;
-      width: 100%;
-      overflow: hidden;
-      background: #0d0d0d;
-      color: #fff;
-      font-family: -apple-system, 'Segoe UI', sans-serif;
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      height:100%; height:-webkit-fill-available;
+      width:100%; overflow:hidden; background:#0d0d0d; color:#fff;
+      font-family:-apple-system,'Segoe UI',sans-serif;
+      position:fixed; top:0; left:0; right:0; bottom:0;
     }
-    #root {
-      height: 100%;
-      width: 100%;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      background: #0d0d0d;
-    }
-
-    /* Show a loading indicator BEFORE React mounts
-       This prevents the black screen on reload */
-    #splash {
-      position: fixed;
-      inset: 0;
-      background: #0d0d0d;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      z-index: 9999;
-      transition: opacity 0.3s ease;
-    }
-    #splash.hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
-    #splash-title {
-      font-size: 34px;
-      font-weight: 800;
-      color: #fff;
-      letter-spacing: -1px;
-    }
-    #splash-spinner {
-      width: 28px;
-      height: 28px;
-      border: 3px solid #222;
-      border-top-color: #e24b4a;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* Leaflet dark popup */
-    .lk-popup .leaflet-popup-content-wrapper {
-      background: #1a1a1a !important;
-      border: 0.5px solid rgba(255,255,255,0.12) !important;
-      border-radius: 12px !important;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.7) !important;
-      padding: 0 !important;
-    }
-    .lk-popup .leaflet-popup-tip { background: #1a1a1a !important; }
-    .lk-popup .leaflet-popup-content { margin: 0 !important; }
-    .leaflet-control-attribution {
-      background: rgba(13,13,13,0.8) !important;
-      color: #555 !important;
-      font-size: 9px !important;
-    }
-    .leaflet-control-attribution a { color: #666 !important; }
+    #root { height:100%; width:100%; overflow:hidden; display:flex; flex-direction:column; background:#0d0d0d; }
+    .lk-popup .leaflet-popup-content-wrapper { background:#1a1a1a!important; border:0.5px solid rgba(255,255,255,0.12)!important; border-radius:12px!important; box-shadow:0 8px 32px rgba(0,0,0,0.7)!important; padding:0!important; }
+    .lk-popup .leaflet-popup-tip { background:#1a1a1a!important; }
+    .lk-popup .leaflet-popup-content { margin:0!important; }
+    .leaflet-control-attribution { background:rgba(13,13,13,0.8)!important; color:#555!important; font-size:9px!important; }
+    .leaflet-control-attribution a { color:#666!important; }
   </style>
 </head>
 <body>
-  <!-- Splash shown immediately before React loads — hides black screen on reload -->
-  <div id="splash">
-    <div id="splash-title">လမ်းကြောင်း</div>
-    <div id="splash-spinner"></div>
-  </div>
-
   <div id="root"></div>
-
   <script>
-    // Hide splash once React has mounted and rendered
-    // We wait for #root to have children
-    const observer = new MutationObserver(() => {
-      const root = document.getElementById('root');
-      if (root && root.children.length > 0) {
-        const splash = document.getElementById('splash');
-        if (splash) {
-          splash.classList.add('hidden');
-          setTimeout(() => splash.remove(), 400);
-        }
-        observer.disconnect();
+    // Kill ALL service workers on every load — prevents stale cache issues
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        regs.forEach(reg => reg.unregister());
+      });
+      // Also clear all caches
+      if ('caches' in window) {
+        caches.keys().then(names => names.forEach(name => caches.delete(name)));
       }
-    });
-    observer.observe(document.getElementById('root'), { childList: true, subtree: true });
-
-    // Fallback: hide splash after 5 seconds no matter what
-    setTimeout(() => {
-      const splash = document.getElementById('splash');
-      if (splash) { splash.classList.add('hidden'); setTimeout(() => splash.remove(), 400); }
-    }, 5000);
+    }
   </script>
-
   <script type="module" src="/src/main.jsx"></script>
 </body>
 </html>
