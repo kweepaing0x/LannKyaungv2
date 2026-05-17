@@ -15,10 +15,19 @@ export default function App() {
     activeTab, setActiveTab,
     showPlusModal, setShowPlusModal,
   } = useAppStore();
-  const [authLoading, setAuthLoading] = useState(true);
+
+  // Three states: "loading" | "ready" | "error"
+  const [authState, setAuthState] = useState("loading");
 
   useEffect(() => {
+    // Hard timeout — if auth takes more than 6 seconds, show login
+    // This prevents infinite black/spinner screen on reload
+    const timeout = setTimeout(() => {
+      setAuthState(prev => prev === "loading" ? "ready" : prev);
+    }, 6000);
+
     const unsub = onAuthChange(async (u) => {
+      clearTimeout(timeout);
       setUser(u);
       if (u) {
         try {
@@ -29,15 +38,16 @@ export default function App() {
           setUserDoc(uDoc);
           setAdminConfig(cfg);
         } catch(e) {
-          console.warn("getUserDoc error:", e.message);
+          console.warn("getUserDoc:", e.message);
         }
       }
-      setAuthLoading(false);
+      setAuthState("ready");
     });
-    return unsub;
+
+    return () => { clearTimeout(timeout); unsub(); };
   }, []);
 
-  // ── Not configured screen ─────────────────────────────────
+  // ── Not configured ────────────────────────────────────────
   if (!isConfigured) {
     return (
       <div style={{
@@ -54,9 +64,6 @@ export default function App() {
           <div style={{color:"#EF9F27", fontWeight:700, fontSize:14, marginBottom:8}}>
             Setup Required
           </div>
-          <div style={{color:"#888", fontSize:12, lineHeight:1.7, marginBottom:16}}>
-            Add your Supabase keys to a <code style={{color:"#EF9F27",background:"#111",padding:"1px 5px",borderRadius:4}}>.env</code> file:
-          </div>
           <div style={{
             background:"#0d0d0d", borderRadius:10, padding:14,
             textAlign:"left", fontFamily:"monospace", fontSize:11,
@@ -65,34 +72,32 @@ export default function App() {
             <div style={{color:"#555", marginBottom:4}}># create .env in project root</div>
             <div>VITE_SUPABASE_URL=https://xxx.supabase.co</div>
             <div>VITE_SUPABASE_ANON=eyJhbGci...</div>
+            <div style={{marginTop:8}}>VITE_TELEGRAM_BOT_TOKEN=xxx</div>
+            <div>VITE_TELEGRAM_CHAT_ID=xxx</div>
           </div>
-          <div style={{color:"#555", fontSize:11, marginTop:12, lineHeight:1.6}}>
-            Get keys from:<br/>
-            <span style={{color:"#4a9eff"}}>Supabase Console → Project Settings → API</span>
-          </div>
-          <div style={{marginTop:16, color:"#555", fontSize:11}}>
-            Then restart: <code style={{color:"#EF9F27",background:"#111",padding:"1px 5px",borderRadius:4}}>npm run dev</code>
+          <div style={{color:"#555", fontSize:11, marginTop:12}}>
+            Then restart: <code style={{color:"#EF9F27"}}>npm run dev</code>
           </div>
         </div>
-        <div style={{color:"#444", fontSize:11}}>
-          Need help? Contact{" "}
-          <a href="https://t.me/doublepzYet" style={{color:"#534AB7"}}>@doublepz Yet</a>
-        </div>
+        <a href="https://t.me/doublepzYet" style={{color:"#534AB7",fontSize:12}}>
+          @doublepz Yet
+        </a>
       </div>
     );
   }
 
-  // ── Loading ───────────────────────────────────────────────
-  if (authLoading) {
+  // ── Loading — but splash in index.html already covers this visually ──
+  // Only show spinner if loading takes longer than expected
+  if (authState === "loading") {
     return (
       <div style={{
         flex:1, display:"flex", flexDirection:"column",
         alignItems:"center", justifyContent:"center",
         background:"#0d0d0d", gap:14,
       }}>
-        <div style={{fontSize:34, fontWeight:800, color:"#fff"}}>လမ်းကြောင်း</div>
+        <div style={{fontSize:32, fontWeight:800, color:"#fff"}}>လမ်းကြောင်း</div>
         <div style={{
-          width:32, height:32, border:"3px solid #333",
+          width:28, height:28, border:"3px solid #222",
           borderTopColor:"#e24b4a", borderRadius:"50%",
           animation:"spin 0.8s linear infinite",
         }}/>
@@ -107,13 +112,11 @@ export default function App() {
   // ── Main app ──────────────────────────────────────────────
   return (
     <>
-      {/* Page */}
       <div style={{flex:1, overflow:"hidden", position:"relative", minHeight:0}}>
         {activeTab === "map"     && <MapPage />}
         {activeTab === "profile" && <ProfilePage />}
       </div>
 
-      {/* Bottom nav */}
       <nav style={{
         flexShrink:0,
         height:60,
@@ -131,19 +134,16 @@ export default function App() {
           onClick={()=>setActiveTab("map")}
         />
 
-        {/* + FAB */}
         <div style={{flex:1, display:"flex", justifyContent:"center"}}>
           <button
             onClick={()=>{ setActiveTab("map"); setShowPlusModal(true); }}
             aria-label="Post situation or check request"
             style={{
-              width:54, height:54,
-              borderRadius:"50%",
+              width:54, height:54, borderRadius:"50%",
               background:"linear-gradient(135deg,#e24b4a,#ff6b35)",
               border:"3px solid #0d0d0d",
               display:"flex", alignItems:"center", justifyContent:"center",
-              cursor:"pointer",
-              marginTop:-20,
+              cursor:"pointer", marginTop:-20,
               boxShadow:"0 4px 18px rgba(226,75,74,0.5)",
             }}
           >
@@ -159,7 +159,6 @@ export default function App() {
         />
       </nav>
 
-      {/* Modal above everything */}
       {showPlusModal && <PlusModal onClose={()=>setShowPlusModal(false)}/>}
     </>
   );
