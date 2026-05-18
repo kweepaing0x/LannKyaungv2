@@ -23,8 +23,9 @@ const TIME_WINDOWS = [
   {id:"1hr",    label:"Next 1 hour",  minutes:60,   credits:200, desc:"I want to know in 1 hour"},
   {id:"custom", label:"Custom time",  minutes:null, credits:null,desc:"Set your own time"},
 ];
-const CUSTOM_HOURS    = [1,2,3,4,5,6,7,8];
+const CUSTOM_HOURS     = [1,2,3,4,5,6,7,8];
 const CREDITS_PER_HOUR = 180;
+const TIP_AMOUNT       = 25;
 
 export default function PlusModal({ onClose }) {
   const {
@@ -32,9 +33,8 @@ export default function PlusModal({ onClose }) {
     userLocation, setUserLocation,
     setShowPlusModal,
     setPickingLocation,
-    pickedLocation,   setPickedLocation,
-    pendingPickTarget,setPendingPickTarget,
-    // Persistent location state across remounts
+    pickedLocation,    setPickedLocation,
+    pendingPickTarget, setPendingPickTarget,
     pinSource,   setPinSource,
     reqSource,   setReqSource,
     savedPinLoc, setSavedPinLoc,
@@ -47,136 +47,115 @@ export default function PlusModal({ onClose }) {
   const [gpsLoading,  setGpsLoading]  = useState(false);
   const [types,       setTypes]       = useState(FALLBACK_TYPES);
   const [mmtTime,     setMmtTime]     = useState(getNowMMT());
-  const [mediaFile,   setMediaFile]   = useState(null);
-  const [mediaPreview,setMediaPreview]= useState(null);
+
+  // Media
+  const [mediaFile,    setMediaFile]    = useState(null);
+  const [mediaPreview, setMediaPreview] = useState(null);
   const fileInputRef = useRef(null);
 
-  // Time window
+  // Tip options — only shown when media is attached
+  const [pinMode, setPinMode] = useState("free"); // "free" | "tip"
+
+  // Time window (check request)
   const [selWindow,   setSelWindow]   = useState("30min");
   const [customHours, setCustomHours] = useState(1);
 
-  // Derived
   const activeWindow = TIME_WINDOWS.find(w => w.id === selWindow);
   const finalMinutes = selWindow === "custom" ? customHours*60 : activeWindow.minutes;
   const finalCredits = selWindow === "custom" ? customHours*CREDITS_PER_HOUR : activeWindow.credits;
   const windowLabel  = selWindow === "custom"
-    ? `Custom · ${customHours} hr${customHours>1?"s":""}`
-    : activeWindow.label;
+    ? `Custom · ${customHours} hr${customHours>1?"s":""}` : activeWindow.label;
 
   const balance   = userDoc?.balance_credits ?? 0;
   const canAfford = balance >= finalCredits;
 
-  // ── On mount ─────────────────────────────────────────────────
-  // Locations live in the STORE so they survive modal close/reopen
-  useEffect(() => {
-    // 1. Apply GPS as default if nothing saved yet
-    if (userLocation && !savedPinLoc) {
-      setSavedPinLoc(userLocation);
-      setPinSource("gps");
-    }
-    if (userLocation && !savedReqLoc) {
-      setSavedReqLoc(userLocation);
-      setReqSource("gps");
-    }
+  // On mount
+  useEffect(()=>{
+    if(userLocation && !savedPinLoc){ setSavedPinLoc(userLocation); setPinSource("gps"); }
+    if(userLocation && !savedReqLoc){ setSavedReqLoc(userLocation); setReqSource("gps"); }
 
-    // 2. Apply map-picked location returned from MapPage
-    if (pickedLocation && pendingPickTarget) {
-      if (pendingPickTarget === "pin") {
-        setSavedPinLoc({ lat: pickedLocation.lat, lng: pickedLocation.lng });
-        setPinSource("map");
-        setMode("update");
-      } else {
-        setSavedReqLoc({ lat: pickedLocation.lat, lng: pickedLocation.lng });
-        setReqSource("map");
-        setMode("request");
-      }
+    if(pickedLocation && pendingPickTarget){
+      const loc = {lat:pickedLocation.lat, lng:pickedLocation.lng};
+      if(pendingPickTarget==="pin"){ setSavedPinLoc(loc); setPinSource("map"); setMode("update"); }
+      else{ setSavedReqLoc(loc); setReqSource("map"); setMode("request"); }
       setPickedLocation(null);
       setPendingPickTarget(null);
     }
-  }, []);
-
-  useEffect(() => {
-    getSituationTypes().then(d=>{if(d?.length)setTypes(d);}).catch(()=>{});
-    const id = setInterval(()=>setMmtTime(getNowMMT()),30000);
-    return () => clearInterval(id);
   },[]);
 
-  // GPS arrives late — fill only if empty and not already from map
-  useEffect(() => {
-    if (!userLocation) return;
-    if (!savedPinLoc) { setSavedPinLoc(userLocation); setPinSource("gps"); }
-    if (!savedReqLoc) { setSavedReqLoc(userLocation); setReqSource("gps"); }
+  useEffect(()=>{
+    getSituationTypes().then(d=>{if(d?.length)setTypes(d);}).catch(()=>{});
+    const id=setInterval(()=>setMmtTime(getNowMMT()),30000);
+    return()=>clearInterval(id);
+  },[]);
+
+  useEffect(()=>{
+    if(!userLocation) return;
+    if(!savedPinLoc){ setSavedPinLoc(userLocation); setPinSource("gps"); }
+    if(!savedReqLoc){ setSavedReqLoc(userLocation); setReqSource("gps"); }
   },[userLocation]);
 
-  // ── GPS re-request ────────────────────────────────────────────
-  async function handleUseGPS(target) {
+  async function handleUseGPS(target){
     setGpsLoading(true);
-    try {
-      const loc = await requestGPS();
+    try{
+      const loc=await requestGPS();
       setUserLocation(loc);
-      if (target === "pin") { setSavedPinLoc(loc); setPinSource("gps"); }
-      if (target === "req") { setSavedReqLoc(loc); setReqSource("gps"); }
-    } catch(err) {
-      if (err.code === 1) {
-        alert(
-          "GPS is blocked.\n\n" +
-          "To enable in Chrome:\n" +
-          "1. Tap 🔒 in the address bar\n" +
-          "2. Site settings → Location → Allow\n" +
-          "3. Refresh the page\n" +
-          "4. Tap 'Use GPS' again"
-        );
+      if(target==="pin"){ setSavedPinLoc(loc); setPinSource("gps"); }
+      if(target==="req"){ setSavedReqLoc(loc); setReqSource("gps"); }
+    }catch(err){
+      if(err.code===1){
+        alert("GPS is blocked.\n\nTo enable in Chrome:\n1. Tap 🔒 in the address bar\n2. Site settings → Location → Allow\n3. Refresh the page\n4. Tap 'Use GPS' again");
       } else {
         alert("GPS not available. Please try 'Pick on map' instead.");
       }
-    } finally { setGpsLoading(false); }
+    }finally{ setGpsLoading(false); }
   }
 
-  function pickOnMap(target) {
+  function pickOnMap(target){
     setPendingPickTarget(target);
     setPickingLocation(true);
     setShowPlusModal(false);
   }
 
-  // ── Media ─────────────────────────────────────────────────────
-  function handleFileChange(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 50*1024*1024) { alert("File too large. Max 50MB."); return; }
+  function handleFileChange(e){
+    const file=e.target.files?.[0];
+    if(!file) return;
+    if(file.size>50*1024*1024){ alert("File too large. Max 50MB."); return; }
     setMediaFile(file);
     setMediaPreview(URL.createObjectURL(file));
   }
-  function removeMedia() {
+  function removeMedia(){
     setMediaFile(null);
-    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+    if(mediaPreview) URL.revokeObjectURL(mediaPreview);
     setMediaPreview(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    if(fileInputRef.current) fileInputRef.current.value="";
+    setPinMode("free");
   }
 
-  const currentType = types.find(x=>x.id===selType) || types[0];
+  const currentType = types.find(x=>x.id===selType)||types[0];
 
-  // ── Label helpers ──────────────────────────────────────────────
-  function locTitle(loc, source) {
-    if (!loc) return "No location yet";
-    if (source === "gps") return "Current location (GPS)";
+  function locTitle(loc,source){
+    if(!loc) return "No location yet";
+    if(source==="gps") return "Current location (GPS)";
     return `${Number(loc.lat).toFixed(5)}, ${Number(loc.lng).toFixed(5)}`;
   }
-  function locSub(loc, source) {
-    if (!loc) return "Tap a button above";
-    if (source === "gps") return `${Number(loc.lat).toFixed(5)}, ${Number(loc.lng).toFixed(5)}`;
+  function locSub(loc,source){
+    if(!loc) return "Tap a button above";
+    if(source==="gps") return `${Number(loc.lat).toFixed(5)}, ${Number(loc.lng).toFixed(5)}`;
     return "Picked on map ✓";
   }
 
-  // ── Post pin ──────────────────────────────────────────────────
-  async function handlePostPin() {
-    if (!savedPinLoc) return alert("Please select a location first");
+  async function handlePostPin(){
+    if(!savedPinLoc) return alert("Please select a location first");
+    if(pinMode==="tip" && !mediaFile) return alert("Please attach a photo or video to enable tips");
     setLoading(true);
-    try {
-      let mediaUrl = null;
-      if (mediaFile) {
-        try { mediaUrl = await uploadPinMedia(mediaFile, `${user?.id}_${Date.now()}`); }
-        catch(e) { console.warn("Media upload failed:", e.message); }
+    try{
+      let mediaUrl=null;
+      if(mediaFile){
+        try{ mediaUrl=await uploadPinMedia(mediaFile,`${user?.id}_${Date.now()}`); }
+        catch(e){ console.warn("Media upload failed:",e.message); }
       }
+      const tipEnabled = pinMode==="tip" && !!mediaUrl;
       await postPin({
         type:     currentType.id,
         emoji:    currentType.emoji,
@@ -187,58 +166,57 @@ export default function PlusModal({ onClose }) {
         labelMy:  currentType.label_my,
         labelEn:  currentType.label_en,
         mediaUrl,
+        isPaidPin: tipEnabled,
+        tipEnabled,
+        tipAmount: tipEnabled ? TIP_AMOUNT : null,
       });
-      // Clear saved pin location after posting
       setSavedPinLoc(null); setPinSource(null);
       setShowPlusModal(false);
-    } catch(e) { alert("Error: " + e.message); }
-    finally { setLoading(false); }
+    }catch(e){ alert("Error: "+e.message); }
+    finally{ setLoading(false); }
   }
 
-  // ── Check request ─────────────────────────────────────────────
-  async function handleCheckRequest() {
-    if (!savedReqLoc) return alert("Please select a target location");
-    if (!canAfford) {
+  async function handleCheckRequest(){
+    if(!savedReqLoc) return alert("Please select a target location");
+    if(!canAfford){
       alert(`Not enough credits.\n\nBalance: ${balance} pts\nCost: ${finalCredits} pts\n\nContact @doublepz Yet on Telegram to top up.`);
       return;
     }
     setLoading(true);
-    try {
+    try{
       await postCheckRequest({
-        requesterUid: user?.id,
-        targetLat:    savedReqLoc.lat,
-        targetLng:    savedReqLoc.lng,
-        targetLabel:  locTitle(savedReqLoc, reqSource),
+        requesterUid:  user?.id,
+        targetLat:     savedReqLoc.lat,
+        targetLng:     savedReqLoc.lng,
+        targetLabel:   locTitle(savedReqLoc,reqSource),
         windowMinutes: finalMinutes,
-        creditsCost:  finalCredits,
+        creditsCost:   finalCredits,
       });
       await notifyCheckRequest({
         requesterEmail: user?.email,
         targetLat:      savedReqLoc.lat,
         targetLng:      savedReqLoc.lng,
-        targetLabel:    locTitle(savedReqLoc, reqSource),
+        targetLabel:    locTitle(savedReqLoc,reqSource),
         windowMinutes:  finalMinutes,
         creditsCost:    finalCredits,
         windowLabel,
       });
-      const fresh = await getUserDoc(user?.id);
-      if (fresh) setUserDoc(fresh);
+      const fresh=await getUserDoc(user?.id);
+      if(fresh) setUserDoc(fresh);
       setSavedReqLoc(null); setReqSource(null);
       setShowPlusModal(false);
-    } catch(e) { alert("Error: " + e.message); }
-    finally { setLoading(false); }
+    }catch(e){ alert("Error: "+e.message); }
+    finally{ setLoading(false); }
   }
 
-  const isVideo = mediaFile?.type?.startsWith("video");
+  const isVideo=mediaFile?.type?.startsWith("video");
 
-  return (
+  return(
     <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",zIndex:999,display:"flex",alignItems:"flex-end"}}>
       <div onClick={e=>e.stopPropagation()} style={{
-        width:"100%",background:"#161616",
-        borderRadius:"20px 20px 0 0",
+        width:"100%",background:"#161616",borderRadius:"20px 20px 0 0",
         border:"0.5px solid rgba(255,255,255,0.09)",
-        maxHeight:"92vh",overflowY:"auto",
-        WebkitOverflowScrolling:"touch",
+        maxHeight:"92vh",overflowY:"auto",WebkitOverflowScrolling:"touch",
         paddingBottom:"env(safe-area-inset-bottom,20px)",
       }}>
         <div style={{width:36,height:4,background:"#2e2e2e",borderRadius:2,margin:"12px auto 14px"}}/>
@@ -256,7 +234,7 @@ export default function PlusModal({ onClose }) {
         </div>
 
         {/* ═══ UPDATE SITUATION ═══ */}
-        {mode==="update" && (
+        {mode==="update"&&(
           <div style={{padding:"0 14px"}}>
             <SLabel>SITUATION TYPE</SLabel>
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:14}}>
@@ -283,19 +261,16 @@ export default function PlusModal({ onClose }) {
                 🗺️ {pinSource==="map"?"Map ✓":"Pick on map"}
               </LocBtn>
             </div>
-            <LocBox
-              icon={pinSource==="gps"?"📍":"🗺️"}
-              title={locTitle(savedPinLoc,pinSource)}
-              sub={locSub(savedPinLoc,pinSource)}
-              highlight={!!savedPinLoc}
-              gps={pinSource==="gps"}
-            />
+            <LocBox icon={pinSource==="gps"?"📍":"🗺️"}
+              title={locTitle(savedPinLoc,pinSource)} sub={locSub(savedPinLoc,pinSource)}
+              highlight={!!savedPinLoc} gps={pinSource==="gps"}/>
 
             <SLabel>POSTED TIME (MMT)</SLabel>
             <LocBox icon="🕐" title={mmtTime} sub="Myanmar Standard Time · UTC+6:30"/>
 
+            {/* Photo / video */}
             <SLabel>PHOTO / VIDEO <span style={{color:"#444",fontWeight:400,fontSize:9}}>(Optional)</span></SLabel>
-            {!mediaPreview ? (
+            {!mediaPreview?(
               <button onClick={()=>fileInputRef.current?.click()} style={{
                 width:"100%",padding:"12px",borderRadius:12,
                 border:"1.5px dashed rgba(255,255,255,0.12)",
@@ -306,18 +281,55 @@ export default function PlusModal({ onClose }) {
                 <i className="ti ti-camera" style={{fontSize:18}} aria-hidden="true"/>
                 Add photo or video to verify
               </button>
-            ) : (
-              <div style={{marginBottom:14,position:"relative"}}>
-                {isVideo
-                  ? <video src={mediaPreview} style={{width:"100%",borderRadius:12,maxHeight:180,objectFit:"cover",background:"#000"}} controls/>
-                  : <img src={mediaPreview} alt="preview" style={{width:"100%",borderRadius:12,maxHeight:180,objectFit:"cover"}}/>
-                }
-                <button onClick={removeMedia} style={{
-                  position:"absolute",top:8,right:8,width:28,height:28,borderRadius:"50%",
-                  background:"rgba(0,0,0,0.7)",border:"none",color:"#fff",fontSize:14,
-                  cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
-                }}>✕</button>
-              </div>
+            ):(
+              <>
+                <div style={{marginBottom:10,position:"relative"}}>
+                  {isVideo
+                    ?<video src={mediaPreview} style={{width:"100%",borderRadius:12,maxHeight:160,objectFit:"cover",background:"#000"}} controls/>
+                    :<img src={mediaPreview} alt="preview" style={{width:"100%",borderRadius:12,maxHeight:160,objectFit:"cover"}}/>
+                  }
+                  <button onClick={removeMedia} style={{
+                    position:"absolute",top:8,right:8,width:28,height:28,borderRadius:"50%",
+                    background:"rgba(0,0,0,0.7)",border:"none",color:"#fff",fontSize:14,
+                    cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
+                  }}>✕</button>
+                </div>
+
+                {/* Tip option — only when media attached */}
+                <SLabel>PIN TYPE</SLabel>
+                <div style={{display:"flex",gap:8,marginBottom:14}}>
+                  {[
+                    {id:"free", label:"Free pin",      desc:"No tip",           icon:"📌"},
+                    {id:"tip",  label:"☕ Tip enabled", desc:`Viewers can tip ${TIP_AMOUNT} pts`, icon:"☕"},
+                  ].map(opt=>(
+                    <div key={opt.id} onClick={()=>setPinMode(opt.id)} style={{
+                      flex:1,background:pinMode===opt.id?"#1a1a1a":"#0d0d0d",
+                      border:`1.5px solid ${pinMode===opt.id?(opt.id==="tip"?"#EF9F27":"#4a9eff"):"rgba(255,255,255,0.07)"}`,
+                      borderRadius:12,padding:"10px 8px",cursor:"pointer",textAlign:"center",
+                    }}>
+                      <div style={{fontSize:20,marginBottom:4}}>{opt.icon}</div>
+                      <div style={{fontSize:11,fontWeight:700,
+                        color:pinMode===opt.id?(opt.id==="tip"?"#EF9F27":"#4a9eff"):"#888"}}>
+                        {opt.label}
+                      </div>
+                      <div style={{fontSize:9,color:"#555",marginTop:2}}>{opt.desc}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {pinMode==="tip"&&(
+                  <div style={{background:"rgba(239,159,39,0.08)",borderRadius:10,padding:"10px 12px",
+                    border:"0.5px solid rgba(239,159,39,0.3)",marginBottom:14}}>
+                    <div style={{color:"#EF9F27",fontSize:12,fontWeight:700,marginBottom:3}}>
+                      ☕ Tip enabled
+                    </div>
+                    <div style={{color:"#888",fontSize:11,lineHeight:1.6}}>
+                      Viewers can send you a ☕ tea tip of <strong style={{color:"#EF9F27"}}>{TIP_AMOUNT} pts</strong>.<br/>
+                      After 20% commission you receive <strong style={{color:"#EF9F27"}}>{Math.round(TIP_AMOUNT*0.8)} pts</strong> per tip.
+                    </div>
+                  </div>
+                )}
+              </>
             )}
             <input ref={fileInputRef} type="file" accept="image/*,video/*" style={{display:"none"}} onChange={handleFileChange}/>
 
@@ -337,13 +349,11 @@ export default function PlusModal({ onClose }) {
         )}
 
         {/* ═══ CHECK REQUEST ═══ */}
-        {mode==="request" && (
+        {mode==="request"&&(
           <div style={{padding:"0 14px"}}>
             <div style={{background:"rgba(83,74,183,0.1)",borderRadius:12,padding:"12px 14px",
               border:"0.5px solid rgba(83,74,183,0.3)",marginBottom:14}}>
-              <div style={{color:"#CECBF6",fontSize:13,fontWeight:700,marginBottom:3}}>
-                🎥 Request a live video check
-              </div>
+              <div style={{color:"#CECBF6",fontSize:13,fontWeight:700,marginBottom:3}}>🎥 Request a live video check</div>
               <div style={{color:"#888",fontSize:11,lineHeight:1.6}}>
                 A nearby user will go to your selected location and send a video within your time window.
               </div>
@@ -358,13 +368,9 @@ export default function PlusModal({ onClose }) {
                 🗺️ {reqSource==="map"?"Map ✓":"Pick on map"}
               </LocBtn>
             </div>
-            <LocBox
-              icon={reqSource==="gps"?"📍":"🗺️"}
-              title={locTitle(savedReqLoc,reqSource)}
-              sub={locSub(savedReqLoc,reqSource)}
-              highlight={!!savedReqLoc}
-              gps={reqSource==="gps"}
-            />
+            <LocBox icon={reqSource==="gps"?"📍":"🗺️"}
+              title={locTitle(savedReqLoc,reqSource)} sub={locSub(savedReqLoc,reqSource)}
+              highlight={!!savedReqLoc} gps={reqSource==="gps"}/>
 
             <SLabel>I WANT TO KNOW WITHIN</SLabel>
             <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
@@ -379,17 +385,17 @@ export default function PlusModal({ onClose }) {
                     <div style={{fontSize:13,fontWeight:700,color:selWindow===w.id?"#CECBF6":"#ccc"}}>{w.label}</div>
                     <div style={{fontSize:10,color:selWindow===w.id?"#7F77DD":"#555",marginTop:2}}>{w.desc}</div>
                   </div>
-                  <div style={{textAlign:"right",flexShrink:0,marginLeft:12}}>
+                  <div style={{flexShrink:0,marginLeft:12}}>
                     {w.id!=="custom"
-                      ? <span style={{fontSize:14,fontWeight:800,color:selWindow===w.id?"#EF9F27":"#666"}}>{w.credits} pts</span>
-                      : <span style={{fontSize:11,color:selWindow===w.id?"#7F77DD":"#555",fontWeight:600}}>{CREDITS_PER_HOUR} pts/hr</span>
+                      ?<span style={{fontSize:14,fontWeight:800,color:selWindow===w.id?"#EF9F27":"#666"}}>{w.credits} pts</span>
+                      :<span style={{fontSize:11,color:selWindow===w.id?"#7F77DD":"#555",fontWeight:600}}>{CREDITS_PER_HOUR} pts/hr</span>
                     }
                   </div>
                 </div>
               ))}
             </div>
 
-            {selWindow==="custom" && (
+            {selWindow==="custom"&&(
               <div style={{marginBottom:14}}>
                 <SLabel>SELECT HOURS</SLabel>
                 <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
@@ -417,21 +423,16 @@ export default function PlusModal({ onClose }) {
               </div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <span style={{color:"#888",fontSize:12}}>Cost</span>
-                <span style={{fontSize:16,fontWeight:800,color:canAfford?"#a8f0c6":"#e24b4a"}}>
-                  − {finalCredits} pts
-                </span>
+                <span style={{fontSize:16,fontWeight:800,color:canAfford?"#a8f0c6":"#e24b4a"}}>− {finalCredits} pts</span>
               </div>
-              {!canAfford && (
+              {!canAfford&&(
                 <div style={{marginTop:12,background:"rgba(226,75,74,0.1)",borderRadius:10,padding:"10px 12px"}}>
                   <div style={{color:"#e24b4a",fontSize:12,fontWeight:700,marginBottom:4}}>⚠️ Not enough credits</div>
-                  <div style={{color:"#999",fontSize:11,lineHeight:1.6,marginBottom:8}}>
-                    Need {finalCredits-balance} more pts.
-                  </div>
+                  <div style={{color:"#999",fontSize:11,lineHeight:1.6,marginBottom:8}}>Need {finalCredits-balance} more pts.</div>
                   <a href="https://t.me/doublepzYet" target="_blank" rel="noreferrer"
                     onClick={e=>e.stopPropagation()} style={{
                       display:"block",textAlign:"center",background:"#0088cc",
-                      borderRadius:8,padding:"8px",color:"#fff",
-                      fontSize:12,fontWeight:700,textDecoration:"none",
+                      borderRadius:8,padding:"8px",color:"#fff",fontSize:12,fontWeight:700,textDecoration:"none",
                     }}>📱 Contact @doublepz Yet</a>
                 </div>
               )}
@@ -461,13 +462,11 @@ function SLabel({children}){
 }
 function LocBox({icon,title,sub,highlight,gps}){
   return(
-    <div style={{
-      display:"flex",alignItems:"center",gap:10,
+    <div style={{display:"flex",alignItems:"center",gap:10,
       background:gps?"rgba(74,158,255,0.07)":highlight?"rgba(83,74,183,0.07)":"#0d0d0d",
       borderRadius:12,padding:"11px 14px",
       border:`0.5px solid ${gps?"rgba(74,158,255,0.35)":highlight?"rgba(83,74,183,0.35)":"rgba(255,255,255,0.07)"}`,
-      marginBottom:12,
-    }}>
+      marginBottom:12}}>
       <span style={{fontSize:18,flexShrink:0}}>{icon}</span>
       <div style={{flex:1,minWidth:0}}>
         <div style={{fontSize:12,color:highlight?"#ddd":"#666",fontWeight:600,
@@ -485,9 +484,8 @@ function LocBtn({children,onClick,purple,active,loading}){
       borderRadius:10,
       background:active?(purple?"#18152a":"rgba(74,158,255,0.12)"):purple?"#18152a":"#0d0d0d",
       color:active?(purple?"#CECBF6":"#4a9eff"):purple?"#888":"#aaa",
-      fontSize:11,fontWeight:700,
-      cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",
-      opacity:loading?0.6:1,
+      fontSize:11,fontWeight:700,cursor:loading?"not-allowed":"pointer",
+      fontFamily:"inherit",opacity:loading?0.6:1,
     }}>{children}</button>
   );
 }
