@@ -2,10 +2,11 @@ import { useState } from "react";
 import { formatMMT, maskEmail, sendTip, getUserDoc } from "../services/supabaseService";
 import { useAppStore } from "../store";
 
+// ── Full-screen media viewer ──────────────────────────────────
 function MediaViewer({ url, onClose }) {
   const isVideo = url.match(/\.(mp4|mov|webm|ogg)/i);
   return (
-    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.95)",
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.97)",
       zIndex:2000,display:"flex",flexDirection:"column"}}>
       <div style={{flexShrink:0,display:"flex",alignItems:"center",
         padding:"14px 16px",borderBottom:"0.5px solid rgba(255,255,255,0.08)"}}>
@@ -28,38 +29,32 @@ function MediaViewer({ url, onClose }) {
   );
 }
 
+// ── Tea tip confirm modal ─────────────────────────────────────
 function TipConfirmModal({ pin, tipAmount, commissionRate, onConfirm, onCancel, loading }) {
   const receiverGets = Math.round(tipAmount * (1 - commissionRate));
   const commission   = tipAmount - receiverGets;
   return (
-    <div onClick={onCancel} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",
+    <div onClick={onCancel} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",
       zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
       <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:340,
         background:"#1a1a1a",borderRadius:20,padding:24,
         border:"0.5px solid rgba(255,255,255,0.1)"}}>
         <div style={{textAlign:"center",marginBottom:20}}>
-          <div style={{fontSize:32,marginBottom:8}}>☕</div>
-          <div style={{color:"#fff",fontSize:16,fontWeight:700,marginBottom:4}}>
+          <div style={{fontSize:38,marginBottom:8}}>☕</div>
+          <div style={{color:"#fff",fontSize:16,fontWeight:700,marginBottom:6}}>
             လက်ဖက်ရည်တိုက်မည်
           </div>
-          <div style={{color:"#888",fontSize:12,lineHeight:1.6}}>
-            You are treating <span style={{color:"#ccc",fontWeight:600}}>{maskEmail(pin.posted_by_email)}</span> with a cup of tea
+          <div style={{color:"#888",fontSize:12,lineHeight:1.7}}>
+            You are treating{" "}
+            <span style={{color:"#ccc",fontWeight:600}}>{maskEmail(pin.posted_by_email)}</span>
+            {" "}with a cup of tea
           </div>
         </div>
         <div style={{background:"#0d0d0d",borderRadius:12,padding:14,marginBottom:16,
           border:"0.5px solid rgba(255,255,255,0.07)"}}>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-            <span style={{color:"#888",fontSize:12}}>Tip amount</span>
-            <span style={{color:"#EF9F27",fontWeight:700,fontSize:14}}>{tipAmount} pts</span>
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-            <span style={{color:"#888",fontSize:12}}>Poster receives</span>
-            <span style={{color:"#a8f0c6",fontWeight:600,fontSize:13}}>{receiverGets} pts</span>
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between"}}>
-            <span style={{color:"#888",fontSize:12}}>Commission ({Math.round(commissionRate*100)}%)</span>
-            <span style={{color:"#666",fontSize:12}}>{commission} pts</span>
-          </div>
+          <Row2 label="Tip amount"   val={`${tipAmount} pts`}     valColor="#EF9F27"/>
+          <Row2 label="Poster gets"  val={`${receiverGets} pts`}  valColor="#a8f0c6"/>
+          <Row2 label={`Commission (${Math.round(commissionRate*100)}%)`} val={`${commission} pts`} valColor="#666"/>
         </div>
         <div style={{display:"flex",gap:10}}>
           <button onClick={onCancel} disabled={loading} style={{flex:1,padding:"12px",borderRadius:12,
@@ -68,9 +63,9 @@ function TipConfirmModal({ pin, tipAmount, commissionRate, onConfirm, onCancel, 
             Cancel
           </button>
           <button onClick={onConfirm} disabled={loading} style={{flex:2,padding:"12px",borderRadius:12,
-            border:"none",background:"#e24b4a",color:"#fff",
+            border:"none",background:loading?"#444":"#e24b4a",color:"#fff",
             fontSize:13,fontWeight:700,cursor:loading?"not-allowed":"pointer",fontFamily:"inherit"}}>
-            {loading?"Sending...":"☕ Confirm"}
+            {loading?"Sending...":"☕ Confirm tip"}
           </button>
         </div>
       </div>
@@ -78,25 +73,43 @@ function TipConfirmModal({ pin, tipAmount, commissionRate, onConfirm, onCancel, 
   );
 }
 
+function Row2({label,val,valColor}){
+  return(
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0"}}>
+      <span style={{color:"#888",fontSize:12}}>{label}</span>
+      <span style={{color:valColor||"#ccc",fontWeight:700,fontSize:13}}>{val}</span>
+    </div>
+  );
+}
+
+// ── Main PinPopup ─────────────────────────────────────────────
+// Flow for tippable pin:
+//   1. User taps pin → sees blurred/locked gate screen asking to tip
+//   2. User taps "☕ Treat with tea" → TipConfirmModal
+//   3. After payment → full pin detail is revealed
 export default function PinPopup({ pin, onClose }) {
   const { user, userDoc, setUserDoc, adminConfig } = useAppStore();
-  const [showMedia,    setShowMedia]    = useState(false);
-  const [showTipConfirm,setShowTipConfirm]=useState(false);
-  const [tipLoading,   setTipLoading]   = useState(false);
-  const [tipDone,      setTipDone]      = useState(false);
+
+  const [showMedia,     setShowMedia]     = useState(false);
+  const [showTipGate,   setShowTipGate]   = useState(
+    // Tippable pins start locked UNLESS it's your own pin
+    pin.tip_enabled && pin.tip_receiver !== user?.id
+  );
+  const [showTipConfirm,setShowTipConfirm]= useState(false);
+  const [tipLoading,    setTipLoading]    = useState(false);
+  const [tipDone,       setTipDone]       = useState(false);
 
   if (!pin) return null;
 
-  const maskedUser     = maskEmail(pin.posted_by_email);
-  const timeStr        = formatMMT(pin.posted_at);
-  const hasMedia       = !!pin.media_url;
-  const isVideo        = hasMedia && pin.media_url.match(/\.(mp4|mov|webm|ogg)/i);
   const tipAmount      = pin.tip_amount || 25;
   const commissionRate = adminConfig?.tip_commission_rate ?? 0.20;
-  const canTip         = pin.tip_enabled && pin.tip_receiver && pin.tip_receiver !== user?.id && !tipDone;
   const myBalance      = userDoc?.balance_credits ?? 0;
 
   async function handleTip() {
+    if (myBalance < tipAmount) {
+      alert(`Not enough credits.\nBalance: ${myBalance} pts\nTip costs: ${tipAmount} pts\n\nContact @doublepz Yet to top up.`);
+      return;
+    }
     setTipLoading(true);
     try {
       await sendTip({
@@ -106,31 +119,173 @@ export default function PinPopup({ pin, onClose }) {
         tipAmount,
         commissionRate,
       });
-      // Refresh own balance
       const fresh = await getUserDoc(user?.id);
       if (fresh) setUserDoc(fresh);
       setTipDone(true);
       setShowTipConfirm(false);
+      setShowTipGate(false); // unlock — show full detail
     } catch(e) {
       alert("Error: " + e.message);
     } finally { setTipLoading(false); }
   }
 
+  // ── TIP GATE SCREEN ───────────────────────────────────────
+  // Shown before payment for tippable pins
+  if (showTipGate) {
+    return (
+      <>
+        <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",
+          zIndex:1000,display:"flex",alignItems:"flex-end"}}>
+          <div onClick={e=>e.stopPropagation()} style={{
+            width:"100%",background:"#161616",
+            borderRadius:"20px 20px 0 0",
+            border:"0.5px solid rgba(255,255,255,0.09)",
+            padding:"0 0 32px",
+            paddingBottom:"calc(32px + env(safe-area-inset-bottom,0px))",
+          }}>
+            <div style={{width:36,height:4,background:"#2e2e2e",borderRadius:2,margin:"12px auto 20px"}}/>
+
+            <div style={{padding:"0 20px",textAlign:"center"}}>
+              {/* Blurred preview */}
+              <div style={{
+                background:"rgba(255,255,255,0.03)",
+                borderRadius:16,padding:"20px 16px",
+                border:"0.5px solid rgba(255,255,255,0.07)",
+                marginBottom:20,
+                position:"relative",overflow:"hidden",
+              }}>
+                {/* Blurred content behind */}
+                <div style={{filter:"blur(6px)",opacity:0.4,pointerEvents:"none",userSelect:"none"}}>
+                  <div style={{fontSize:36,marginBottom:8}}>{pin.emoji||"📍"}</div>
+                  <div style={{color:"#fff",fontSize:16,fontWeight:700,marginBottom:4}}>
+                    {pin.label_my||pin.type}
+                  </div>
+                  <div style={{color:"#888",fontSize:12}}>Posted by @??*** · ?? MMT</div>
+                  <div style={{color:"#888",fontSize:12,marginTop:4}}>Photo / Video attached</div>
+                </div>
+                {/* Lock overlay */}
+                <div style={{
+                  position:"absolute",inset:0,
+                  display:"flex",flexDirection:"column",
+                  alignItems:"center",justifyContent:"center",
+                  background:"rgba(22,22,22,0.6)",
+                  backdropFilter:"blur(2px)",
+                }}>
+                  <div style={{fontSize:28,marginBottom:6}}>🔒</div>
+                  <div style={{color:"#fff",fontSize:13,fontWeight:700}}>Content locked</div>
+                  <div style={{color:"#888",fontSize:11,marginTop:3}}>Treat with tea to unlock</div>
+                </div>
+              </div>
+
+              {/* Emoji + type hint */}
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:6}}>
+                <span style={{fontSize:28}}>{pin.emoji||"📍"}</span>
+                <div>
+                  <div style={{color:"#fff",fontSize:15,fontWeight:700}}>{pin.label_my||pin.type}</div>
+                  <div style={{color:"#666",fontSize:11}}>This pin has photo/video verification</div>
+                </div>
+              </div>
+
+              <div style={{
+                background:"rgba(239,159,39,0.08)",borderRadius:12,
+                padding:"12px 14px",marginBottom:20,marginTop:16,
+                border:"0.5px solid rgba(239,159,39,0.25)",
+                textAlign:"left",
+              }}>
+                <div style={{color:"#EF9F27",fontSize:12,fontWeight:700,marginBottom:4}}>
+                  ☕ Tip to unlock full details
+                </div>
+                <div style={{color:"#888",fontSize:11,lineHeight:1.7}}>
+                  The poster will receive a tea tip for sharing this verified information.
+                  You will see the photo/video, exact time, and poster info.
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",marginTop:10}}>
+                  <span style={{color:"#888",fontSize:11}}>Tip cost</span>
+                  <span style={{color:"#EF9F27",fontWeight:700,fontSize:13}}>{tipAmount} pts</span>
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}>
+                  <span style={{color:"#888",fontSize:11}}>Your balance</span>
+                  <span style={{
+                    color:myBalance>=tipAmount?"#a8f0c6":"#e24b4a",
+                    fontWeight:700,fontSize:13,
+                  }}>{myBalance} pts</span>
+                </div>
+              </div>
+
+              <button
+                onClick={()=>{
+                  if(myBalance<tipAmount){
+                    alert(`Not enough credits.\nBalance: ${myBalance} pts\nNeed: ${tipAmount} pts\n\nContact @doublepz Yet to top up.`);
+                    return;
+                  }
+                  setShowTipConfirm(true);
+                }}
+                style={{
+                  width:"100%",padding:"14px",borderRadius:12,border:"none",
+                  background:"linear-gradient(135deg,#e24b4a,#EF9F27)",
+                  color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",
+                  fontFamily:"inherit",marginBottom:10,
+                  boxShadow:"0 4px 16px rgba(239,159,39,0.3)",
+                }}>
+                ☕ လက်ဖက်ရည်တိုက် · Unlock for {tipAmount} pts
+              </button>
+
+              <button onClick={onClose} style={{
+                width:"100%",padding:"12px",borderRadius:12,
+                background:"#1a1a1a",border:"0.5px solid rgba(255,255,255,0.08)",
+                color:"#666",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",
+              }}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {showTipConfirm&&(
+          <TipConfirmModal
+            pin={pin} tipAmount={tipAmount} commissionRate={commissionRate}
+            onConfirm={handleTip} onCancel={()=>setShowTipConfirm(false)} loading={tipLoading}
+          />
+        )}
+      </>
+    );
+  }
+
+  // ── FULL DETAIL SCREEN ────────────────────────────────────
+  const maskedUser = maskEmail(pin.posted_by_email);
+  const timeStr    = formatMMT(pin.posted_at);
+  const hasMedia   = !!pin.media_url;
+  const isVid      = hasMedia && pin.media_url.match(/\.(mp4|mov|webm|ogg)/i);
+
   return (
     <>
       <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",
         zIndex:1000,display:"flex",alignItems:"flex-end"}}>
-        <div onClick={e=>e.stopPropagation()} style={{width:"100%",background:"#1a1a1a",
-          borderRadius:"20px 20px 0 0",border:"0.5px solid rgba(255,255,255,0.09)",
-          padding:"0 0 32px",paddingBottom:"calc(32px + env(safe-area-inset-bottom,0px))"}}>
+        <div onClick={e=>e.stopPropagation()} style={{
+          width:"100%",background:"#1a1a1a",
+          borderRadius:"20px 20px 0 0",
+          border:"0.5px solid rgba(255,255,255,0.09)",
+          padding:"0 0 32px",
+          paddingBottom:"calc(32px + env(safe-area-inset-bottom,0px))",
+        }}>
           <div style={{width:36,height:4,background:"#2e2e2e",borderRadius:2,margin:"12px auto 16px"}}/>
 
           <div style={{padding:"0 20px"}}>
-            {/* Emoji + label */}
+            {/* Tip paid success badge */}
+            {tipDone&&(
+              <div style={{background:"rgba(168,240,198,0.1)",borderRadius:10,padding:"10px 14px",
+                border:"0.5px solid #a8f0c6",marginBottom:14,textAlign:"center",
+                color:"#a8f0c6",fontSize:12,fontWeight:600}}>
+                ☕ Tea sent! Thank you for supporting this poster.
+              </div>
+            )}
+
+            {/* Emoji + label row */}
             <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16}}>
               <div style={{width:52,height:52,borderRadius:"50%",
                 background:"rgba(255,255,255,0.05)",
-                display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,flexShrink:0}}>
+                display:"flex",alignItems:"center",justifyContent:"center",
+                fontSize:28,flexShrink:0}}>
                 {pin.emoji||"📍"}
               </div>
               <div>
@@ -147,16 +302,10 @@ export default function PinPopup({ pin, onClose }) {
                     color:pin.is_history?"#666":"#e24b4a"}}>
                     {pin.is_history?"🕐 History":"🔴 Live"}
                   </span>
-                  {pin.is_paid_pin&&(
-                    <span style={{background:"rgba(83,74,183,0.2)",borderRadius:6,
-                      padding:"2px 8px",fontSize:10,fontWeight:700,color:"#CECBF6"}}>
-                      📌 Verified pin
-                    </span>
-                  )}
                   {pin.tip_enabled&&(
-                    <span style={{background:"rgba(226,75,74,0.12)",borderRadius:6,
+                    <span style={{background:"rgba(239,159,39,0.15)",borderRadius:6,
                       padding:"2px 8px",fontSize:10,fontWeight:700,color:"#EF9F27"}}>
-                      ☕ Tippable
+                      ☕ Tipped
                     </span>
                   )}
                 </div>
@@ -180,71 +329,38 @@ export default function PinPopup({ pin, onClose }) {
             </div>
 
             {/* View media */}
-            {hasMedia&&(
+            {hasMedia?(
               <button onClick={()=>setShowMedia(true)} style={{
                 background:"none",border:"none",padding:"0 0 14px",
                 display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}>
-                <i className={`ti ${isVideo?"ti-player-play":"ti-photo"}`}
+                <i className={`ti ${isVid?"ti-player-play":"ti-photo"}`}
                   style={{fontSize:16,color:"#4a9eff"}} aria-hidden="true"/>
                 <span style={{color:"#4a9eff",fontSize:13,fontWeight:600,
                   textDecoration:"underline",textUnderlineOffset:3}}>
-                  {isVideo?"View video":"View photo"}
+                  {isVid?"View video":"View photo"}
                 </span>
               </button>
-            )}
-            {!hasMedia&&(
+            ):(
               <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:14}}>
                 <i className="ti ti-photo-off" style={{fontSize:15,color:"#333"}} aria-hidden="true"/>
                 <span style={{color:"#444",fontSize:12}}>No photo or video attached</span>
               </div>
             )}
 
-            {/* Tip button */}
-            {canTip&&(
-              <button onClick={()=>{
-                if(myBalance<tipAmount){
-                  alert(`Not enough credits.\nBalance: ${myBalance} pts\nTip costs: ${tipAmount} pts\n\nContact @doublepz Yet to top up.`);
-                  return;
-                }
-                setShowTipConfirm(true);
-              }} style={{
-                width:"100%",padding:"13px",borderRadius:12,marginBottom:10,
-                border:"1.5px solid rgba(226,75,74,0.4)",
-                background:"rgba(226,75,74,0.08)",
-                color:"#EF9F27",fontSize:13,fontWeight:700,
-                cursor:"pointer",fontFamily:"inherit",
-                display:"flex",alignItems:"center",justifyContent:"center",gap:8,
-              }}>
-                ☕ လက်ဖက်ရည်တိုက် · {tipAmount} pts
-              </button>
-            )}
-
-            {tipDone&&(
-              <div style={{
-                width:"100%",padding:"12px",borderRadius:12,marginBottom:10,
-                background:"rgba(168,240,198,0.1)",border:"0.5px solid #a8f0c6",
-                color:"#a8f0c6",fontSize:13,fontWeight:600,textAlign:"center",
-              }}>
-                ☕ Tea sent! Thank you.
-              </div>
-            )}
-
-            <button onClick={onClose} style={{width:"100%",padding:"13px",borderRadius:12,
+            <button onClick={onClose} style={{
+              width:"100%",padding:"13px",borderRadius:12,
               background:"#222",border:"0.5px solid rgba(255,255,255,0.08)",
-              color:"#888",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+              color:"#888",fontSize:13,fontWeight:600,
+              cursor:"pointer",fontFamily:"inherit",
+            }}>
               Close
             </button>
           </div>
         </div>
       </div>
 
-      {showMedia&&pin.media_url&&<MediaViewer url={pin.media_url} onClose={()=>setShowMedia(false)}/>}
-
-      {showTipConfirm&&(
-        <TipConfirmModal
-          pin={pin} tipAmount={tipAmount} commissionRate={commissionRate}
-          onConfirm={handleTip} onCancel={()=>setShowTipConfirm(false)} loading={tipLoading}
-        />
+      {showMedia&&pin.media_url&&(
+        <MediaViewer url={pin.media_url} onClose={()=>setShowMedia(false)}/>
       )}
     </>
   );
