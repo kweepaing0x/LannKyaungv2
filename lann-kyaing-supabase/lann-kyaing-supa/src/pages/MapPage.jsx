@@ -146,16 +146,38 @@ export default function MapPage(){
       const color=PIN_COLORS[pin.type]||"#888";
       const hist=!!pin.is_history;
       const sz=hist?10:20;
-      const hasTip=pin.tip_enabled&&!hist;
-      const icon=L.divIcon({className:"",
-        html:`<div style="position:relative">
-          <div style="width:${sz}px;height:${sz}px;background:${color};border-radius:50%;
-            border:2.5px solid rgba(255,255,255,${hist?.2:.7});opacity:${hist?.4:1};
-            box-shadow:0 0 ${hist?3:10}px ${color}${hist?"33":"99"};cursor:pointer"></div>
-          ${hasTip?`<div style="position:absolute;top:-6px;right:-6px;font-size:10px;line-height:1">☕</div>`:""}
-        </div>`,
-        iconSize:[sz,sz],iconAnchor:[sz/2,sz/2],
-      });
+      const hasTip = pin.tip_enabled && !hist;
+      // Tippable pins: show ?? bubble with ☕ — content hidden until tip paid
+      // Normal pins: show colored dot
+      const icon = hasTip
+        ? L.divIcon({
+            className:"",
+            html:`<div style="display:flex;flex-direction:column;align-items:center;cursor:pointer">
+              <div style="
+                background:linear-gradient(135deg,#e24b4a,#EF9F27);
+                border-radius:20px;padding:3px 7px 3px 5px;
+                border:2px solid rgba(255,255,255,0.8);
+                box-shadow:0 3px 12px rgba(239,159,39,0.6);
+                display:flex;align-items:center;gap:3px;
+                white-space:nowrap;
+              ">
+                <span style="font-size:11px;line-height:1">☕</span>
+                <span style="color:#fff;font-size:10px;font-weight:800;letter-spacing:0.5px">??</span>
+              </div>
+              <div style="width:2px;height:6px;background:#EF9F27;border-radius:0 0 2px 2px;margin-top:-1px"></div>
+              <div style="width:6px;height:3px;background:rgba(0,0,0,0.3);border-radius:50%"></div>
+            </div>`,
+            iconSize:[52,30], iconAnchor:[26,36],
+          })
+        : L.divIcon({
+            className:"",
+            html:`<div style="
+              width:${sz}px;height:${sz}px;background:${color};border-radius:50%;
+              border:2.5px solid rgba(255,255,255,${hist?.2:.7});opacity:${hist?.4:1};
+              box-shadow:0 0 ${hist?3:10}px ${color}${hist?"33":"99"};cursor:pointer">
+            </div>`,
+            iconSize:[sz,sz], iconAnchor:[sz/2,sz/2],
+          });
       const m=L.marker([pin.lat,pin.lng],{icon}).addTo(mapInstance.current)
         .on("click",()=>setSelectedPin(pin));
       markersRef.current.push(m);
