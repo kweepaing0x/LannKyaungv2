@@ -84,7 +84,7 @@ export default function ProfilePage() {
               </div>
               {isNormal&&(
                 <div style={{color:"#534AB7",fontSize:10,marginTop:6,cursor:"pointer"}}
-                  onClick={()=>alert("Contact @doublepz Yet on Telegram to upgrade to Business account.")}>
+                  onClick={()=>alert("Contact @dx0dev Yet on Telegram to upgrade to Business account.")}>
                   Upgrade →
                 </div>
               )}
@@ -159,7 +159,7 @@ export default function ProfilePage() {
             borderRadius:12,padding:"13px",color:"#fff",
             fontSize:13,fontWeight:700,textDecoration:"none",marginBottom:12,
           }}>
-            📱 Contact Admin · @doublepz Yet
+            📱 Contact Admin · @dx0dev Yet
           </a>
 
           <button onClick={signOut} style={{
